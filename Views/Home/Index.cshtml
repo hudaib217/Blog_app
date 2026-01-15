@@ -1,0 +1,53 @@
+﻿@model IEnumerable<BlogApplication.Models.BlogPost>
+
+@{
+    ViewData["Title"] = "Blog Homepage";
+    var isAuthenticated = User?.Identity?.IsAuthenticated ?? false;
+}
+
+<div class="container mt-4">
+    <h1 class="mb-4">Latest Blog Posts</h1>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">@TempData["Success"]</div>
+    }
+
+    @if (Model.Any())
+    {
+        @foreach (var post in Model)
+        {
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h3 class="card-title">@post.Title</h3>
+                    <p class="card-text">@post.Content</p>
+                    <small class="text-muted">
+                        By @post.Author.Username on @post.CreatedAt.ToString("MMM dd, yyyy")
+                    </small>
+
+                    <!-- 👇 FIXED BLOCK 👇 -->
+                    @if (isAuthenticated)
+                    {
+                        var currentUserId = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                        if ((currentUserId != null && currentUserId == post.AuthorId.ToString()) || (User?.IsInRole("admin") ?? false))
+                        {
+                            <div class="mt-2">
+                                <a asp-controller="BlogPost" asp-action="Edit" asp-route-id="@post.Id"
+                                   class="btn btn-sm btn-outline-primary">Edit</a>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <p>No posts yet. Be the first to <a asp-controller="BlogPost" asp-action="Create">create a post</a>!</p>
+    }
+
+    @if (isAuthenticated)
+    {
+        <a asp-controller="BlogPost" asp-action="Create" class="btn btn-primary">+ New Post</a>
+    }
+</div>
