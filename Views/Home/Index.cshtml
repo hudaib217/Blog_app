@@ -1,53 +1,198 @@
-﻿@model IEnumerable<BlogApplication.Models.BlogPost>
+@model IEnumerable<BlogApplication.Models.BlogPost>
 
 @{
     ViewData["Title"] = "Blog Homepage";
     var isAuthenticated = User?.Identity?.IsAuthenticated ?? false;
+    var currentPage = ViewBag.CurrentPage ?? 1;
+    var totalPages = ViewBag.TotalPages ?? 1;
+    var search = ViewBag.Search as string;
+    var categoryId = ViewBag.CategoryId as int?;
+    var categoryName = ViewBag.CategoryName as string;
+    var currentTag = ViewBag.Tag as string;
+    var categories = ViewBag.Categories as List<BlogApplication.Models.Category> ?? new List<BlogApplication.Models.Category>();
+    var allTags = ViewBag.AllTags as List<BlogApplication.Models.Tag> ?? new List<BlogApplication.Models.Tag>();
 }
 
 <div class="container mt-4">
-    <h1 class="mb-4">Latest Blog Posts</h1>
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-md-8">
+            <h1 class="mb-4">Latest Blog Posts</h1>
 
-    @if (TempData["Success"] != null)
-    {
-        <div class="alert alert-success">@TempData["Success"]</div>
-    }
-
-    @if (Model.Any())
-    {
-        @foreach (var post in Model)
-        {
-            <div class="card mb-4">
-                <div class="card-body">
-                    <h3 class="card-title">@post.Title</h3>
-                    <p class="card-text">@post.Content</p>
-                    <small class="text-muted">
-                        By @post.Author.Username on @post.CreatedAt.ToString("MMM dd, yyyy")
-                    </small>
-
-                    <!-- 👇 FIXED BLOCK 👇 -->
-                    @if (isAuthenticated)
+            <!-- Search Box -->
+            <form method="get" asp-action="Index" class="mb-4">
+                <div class="input-group" style="max-width: 400px;">
+                    <input type="text" name="search" class="form-control" placeholder="Search posts..."
+                           value="@search" />
+                    <button type="submit" class="btn btn-outline-secondary">Search</button>
+                    @if (!string.IsNullOrEmpty(search))
                     {
-                        var currentUserId = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                        if ((currentUserId != null && currentUserId == post.AuthorId.ToString()) || (User?.IsInRole("admin") ?? false))
-                        {
-                            <div class="mt-2">
-                                <a asp-controller="BlogPost" asp-action="Edit" asp-route-id="@post.Id"
-                                   class="btn btn-sm btn-outline-primary">Edit</a>
-                            </div>
-                        }
+                        <a asp-action="Index" class="btn btn-outline-danger">Clear</a>
                     }
                 </div>
-            </div>
-        }
-    }
-    else
-    {
-        <p>No posts yet. Be the first to <a asp-controller="BlogPost" asp-action="Create">create a post</a>!</p>
-    }
+            </form>
 
-    @if (isAuthenticated)
-    {
-        <a asp-controller="BlogPost" asp-action="Create" class="btn btn-primary">+ New Post</a>
-    }
+            <!-- Active Filters -->
+            @if (!string.IsNullOrEmpty(search) || categoryId.HasValue || !string.IsNullOrEmpty(currentTag))
+            {
+                <div class="mb-3">
+                    <span class="text-muted">Filters: </span>
+                    @if (!string.IsNullOrEmpty(search))
+                    {
+                        <span class="badge bg-info me-1">Search: @search</span>
+                    }
+                    @if (categoryId.HasValue)
+                    {
+                        <span class="badge bg-primary me-1">Category: @categoryName</span>
+                    }
+                    @if (!string.IsNullOrEmpty(currentTag))
+                    {
+                        <span class="badge bg-secondary me-1">Tag: @currentTag</span>
+                    }
+                    <a asp-action="Index" class="btn btn-sm btn-outline-danger">Clear All</a>
+                    <small class="text-muted ms-2">(@ViewBag.TotalPosts found)</small>
+                </div>
+            }
+
+            @if (TempData["Success"] != null)
+            {
+                <div class="alert alert-success">@TempData["Success"]</div>
+            }
+
+            @if (Model.Any())
+            {
+                @foreach (var post in Model)
+                {
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h3 class="card-title">
+                                <a asp-controller="BlogPost" asp-action="Details" asp-route-id="@post.Id"
+                                   class="text-decoration-none text-dark">@post.Title</a>
+                            </h3>
+
+                            <!-- Category & Tags -->
+                            <div class="mb-2">
+                                @if (post.Category != null)
+                                {
+                                    <a asp-action="Index" asp-route-categoryId="@post.Category.Id"
+                                       class="badge bg-primary text-decoration-none">@post.Category.Name</a>
+                                }
+                                @foreach (var tag in post.Tags)
+                                {
+                                    <a asp-action="Index" asp-route-tag="@tag.Name"
+                                       class="badge bg-secondary text-decoration-none">@tag.Name</a>
+                                }
+                            </div>
+
+                            <p class="card-text">
+                                @(post.Content.Length > 200 ? post.Content.Substring(0, 200) + "..." : post.Content)
+                            </p>
+                            <small class="text-muted">
+                                By @post.Author.Username on @post.CreatedAt.ToString("MMM dd, yyyy")
+                                | <a asp-controller="BlogPost" asp-action="Details" asp-route-id="@post.Id">
+                                    @post.Comments.Count comment(s)
+                                </a>
+                            </small>
+
+                            @if (isAuthenticated)
+                            {
+                                var currentUserId = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                                if ((currentUserId != null && currentUserId == post.AuthorId.ToString()) || (User?.IsInRole("admin") ?? false))
+                                {
+                                    <div class="mt-2">
+                                        <a asp-controller="BlogPost" asp-action="Edit" asp-route-id="@post.Id"
+                                           class="btn btn-sm btn-outline-primary">Edit</a>
+                                        <form asp-controller="BlogPost" asp-action="Delete" asp-route-id="@post.Id"
+                                              method="post" style="display:inline;"
+                                              onsubmit="return confirm('Are you sure you want to delete this post?');">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                        </form>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <p>No posts yet. Be the first to <a asp-controller="BlogPost" asp-action="Create">create a post</a>!</p>
+            }
+
+            @if (isAuthenticated)
+            {
+                <a asp-controller="BlogPost" asp-action="Create" class="btn btn-primary">+ New Post</a>
+            }
+
+            <!-- Pagination -->
+            @if (totalPages > 1)
+            {
+                <nav class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                            <a class="page-link" asp-action="Index"
+                               asp-route-page="@(currentPage - 1)"
+                               asp-route-search="@search"
+                               asp-route-categoryId="@categoryId"
+                               asp-route-tag="@currentTag">Previous</a>
+                        </li>
+
+                        @for (int i = 1; i <= totalPages; i++)
+                        {
+                            <li class="page-item @(i == currentPage ? "active" : "")">
+                                <a class="page-link" asp-action="Index"
+                                   asp-route-page="@i"
+                                   asp-route-search="@search"
+                                   asp-route-categoryId="@categoryId"
+                                   asp-route-tag="@currentTag">@i</a>
+                            </li>
+                        }
+
+                        <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                            <a class="page-link" asp-action="Index"
+                               asp-route-page="@(currentPage + 1)"
+                               asp-route-search="@search"
+                               asp-route-categoryId="@categoryId"
+                               asp-route-tag="@currentTag">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            }
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-md-4">
+            <!-- Categories -->
+            @if (categories.Any())
+            {
+                <div class="card mb-4">
+                    <div class="card-header">Categories</div>
+                    <ul class="list-group list-group-flush">
+                        @foreach (var cat in categories)
+                        {
+                            <li class="list-group-item">
+                                <a asp-action="Index" asp-route-categoryId="@cat.Id"
+                                   class="text-decoration-none">@cat.Name</a>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <!-- Tags Cloud -->
+            @if (allTags.Any())
+            {
+                <div class="card mb-4">
+                    <div class="card-header">Tags</div>
+                    <div class="card-body">
+                        @foreach (var tag in allTags)
+                        {
+                            <a asp-action="Index" asp-route-tag="@tag.Name"
+                               class="badge bg-secondary text-decoration-none me-1 mb-1">@tag.Name</a>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
 </div>

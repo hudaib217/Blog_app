@@ -20,7 +20,7 @@ namespace BlogApplication.Controllers
         {
             _context = context;
         }
-        [HttpPost]
+   
     
 
         // ===== REGISTER =====
